@@ -1,0 +1,294 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum TemplateStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+
+enum PurchaseStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+  DISPUTED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum LicenseType {
+  PERSONAL
+  COMMERCIAL
+  EXTENDED
+}
+
+enum PaymentProvider {
+  STRIPE
+  RAZORPAY
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String?
+  avatar       String?
+  role         Role     @default(BUYER)
+  bio          String?
+  website      String?
+  githubUrl    String?
+  twitterUrl   String?
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sellerProfile   SellerProfile?
+  templates       Template[]
+  purchases       Purchase[]
+  reviews         Review[]
+  wishlists       Wishlist[]
+  reviewsReceived Review[]       @relation("ReviewTarget")
+
+  @@map("users")
+}
+
+model SellerProfile {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  displayName     String
+  bio             String?
+  stripeAccountId String?
+  razorpayAccount String?
+  totalSales      Int      @default(0)
+  totalRevenue    Decimal  @default(0) @db.Decimal(10, 2)
+  isApproved      Boolean  @default(false)
+  githubVerified  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payouts Payout[]
+
+  @@map("seller_profiles")
+}
+
+model Template {
+  id              String         @id @default(uuid())
+  sellerId        String
+  title           String
+  slug            String         @unique
+  description     String
+  shortDesc       String
+  price           Decimal        @db.Decimal(10, 2)
+  status          TemplateStatus @default(DRAFT)
+  licenseType     LicenseType    @default(PERSONAL)
+  demoUrl         String?
+  repoUrl         String?
+  thumbnailUrl    String?
+  techStack       String[]
+  tags            String[]
+  category        String
+  subCategory     String?
+  trendingScore   Float          @default(0)
+  viewCount       Int            @default(0)
+  salesCount      Int            @default(0)
+  wishlistCount   Int            @default(0)
+  averageRating   Float          @default(0)
+  reviewCount     Int            @default(0)
+  version         String         @default("1.0.0")
+  aiQualityScore  Float?
+  aiQualityReport Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  seller      User             @relation(fields: [sellerId], references: [id])
+  files       TemplateFile[]
+  purchases   Purchase[]
+  reviews     Review[]
+  wishlists   Wishlist[]
+  collections CollectionItem[]
+
+  @@index([slug])
+  @@index([category])
+  @@index([status])
+  @@index([trendingScore])
+  @@index([techStack])
+  @@map("templates")
+}
+
+model TemplateFile {
+  id         String   @id @default(uuid())
+  templateId String
+  version    String
+  fileUrl    String
+  fileSize   Int
+  changelog  String?
+  isLatest   Boolean  @default(true)
+  uploadedAt DateTime @default(now())
+
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("template_files")
+}
+
+model Purchase {
+  id              String          @id @default(uuid())
+  buyerId         String
+  templateId      String
+  amount          Decimal         @db.Decimal(10, 2)
+  platformFee     Decimal         @db.Decimal(10, 2)
+  sellerRevenue   Decimal         @db.Decimal(10, 2)
+  status          PurchaseStatus  @default(PENDING)
+  paymentProvider PaymentProvider
+  paymentIntentId String?         @unique
+  couponId        String?
+  discountAmount  Decimal?        @db.Decimal(10, 2)
+  receiptUrl      String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  buyer    User        @relation(fields: [buyerId], references: [id])
+  template Template    @relation(fields: [templateId], references: [id])
+  coupon   Coupon?     @relation(fields: [couponId], references: [id])
+  license  LicenseKey?
+
+  @@index([buyerId])
+  @@index([templateId])
+  @@map("purchases")
+}
+
+model Review {
+  id            String   @id @default(uuid())
+  templateId    String
+  reviewerId    String
+  targetUserId  String
+  rating        Int
+  title         String
+  body          String
+  codeQuality   Int?
+  documentation Int?
+  support       Int?
+  isFlagged     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  reviewer User     @relation(fields: [reviewerId], references: [id])
+  target   User     @relation("ReviewTarget", fields: [targetUserId], references: [id])
+
+  @@unique([templateId, reviewerId])
+  @@map("reviews")
+}
+
+model Wishlist {
+  id         String   @id @default(uuid())
+  userId     String
+  templateId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, templateId])
+  @@map("wishlists")
+}
+
+model Coupon {
+  id            String    @id @default(uuid())
+  sellerId      String
+  code          String    @unique
+  discountType  String
+  discountValue Decimal   @db.Decimal(10, 2)
+  maxUses       Int?
+  usedCount     Int       @default(0)
+  expiresAt     DateTime?
+  templateId    String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+
+  purchases Purchase[]
+
+  @@map("coupons")
+}
+
+model Payout {
+  id               String          @id @default(uuid())
+  sellerProfileId  String
+  amount           Decimal         @db.Decimal(10, 2)
+  status           PayoutStatus    @default(PENDING)
+  provider         PaymentProvider
+  providerPayoutId String?
+  periodStart      DateTime
+  periodEnd        DateTime
+  processedAt      DateTime?
+  createdAt        DateTime        @default(now())
+
+  sellerProfile SellerProfile @relation(fields: [sellerProfileId], references: [id])
+
+  @@map("payouts")
+}
+
+model LicenseKey {
+  id          String    @id @default(uuid())
+  purchaseId  String    @unique
+  key         String    @unique @default(uuid())
+  isActive    Boolean   @default(true)
+  activatedAt DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+
+  @@map("license_keys")
+}
+
+model Collection {
+  id          String   @id @default(uuid())
+  creatorId   String
+  title       String
+  slug        String   @unique
+  description String?
+  isBundle    Boolean  @default(false)
+  bundlePrice Decimal? @db.Decimal(10, 2)
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items CollectionItem[]
+
+  @@map("collections")
+}
+
+model CollectionItem {
+  id           String   @id @default(uuid())
+  collectionId String
+  templateId   String
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  template   Template   @relation(fields: [templateId], references: [id])
+
+  @@unique([collectionId, templateId])
+  @@map("collection_items")
+}
