@@ -4,4 +4,4 @@ export const errorHandler = (err: Error, _req: Request, res: Response, _next: Ne
   console.error('[auth-service error]', err)
   res.status(500).json({ error: 'Internal server error' })
 }
-//hi
+
