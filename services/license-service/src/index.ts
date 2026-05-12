@@ -17,7 +17,7 @@ app.use(express.json())
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'license-service', timestamp: new Date().toISOString() })
 })
-//nipul
+
 
 app.listen(PORT, () => console.log(`License service running on port ${PORT}`))
 export default app
