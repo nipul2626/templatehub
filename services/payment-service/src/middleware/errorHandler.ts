@@ -4,5 +4,3 @@ export const errorHandler = (err: Error, _req: Request, res: Response, _next: Ne
   console.error('[payment-service error]', err)
   res.status(500).json({ error: 'Internal server error' })
 }
-
-//hi
