@@ -1,0 +1,165 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: templatehub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: templatehub
+      POSTGRES_PASSWORD: templatehub_dev_password
+      POSTGRES_DB: templatehub
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U templatehub']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: templatehub-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: templatehub-gateway
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    depends_on:
+      - auth-service
+      - marketplace-service
+      - seller-service
+      - payment-service
+      - license-service
+      - ai-service
+      - notification-service
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    container_name: templatehub-auth
+    restart: unless-stopped
+    ports:
+      - '3001:3001'
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  marketplace-service:
+    build:
+      context: .
+      dockerfile: services/marketplace-service/Dockerfile
+    container_name: templatehub-marketplace
+    restart: unless-stopped
+    ports:
+      - '3002:3002'
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  seller-service:
+    build:
+      context: .
+      dockerfile: services/seller-service/Dockerfile
+    container_name: templatehub-seller
+    restart: unless-stopped
+    ports:
+      - '3003:3003'
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: services/payment-service/Dockerfile
+    container_name: templatehub-payment
+    restart: unless-stopped
+    ports:
+      - '3004:3004'
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  license-service:
+    build:
+      context: .
+      dockerfile: services/license-service/Dockerfile
+    container_name: templatehub-license
+    restart: unless-stopped
+    ports:
+      - '3005:3005'
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3005
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: services/ai-service/Dockerfile
+    container_name: templatehub-ai
+    restart: unless-stopped
+    ports:
+      - '3006:3006'
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3006
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: templatehub-notification
+    restart: unless-stopped
+    ports:
+      - '3007:3007'
+    env_file: .env
+    environment:
+      - NODE_ENV=development
+      - PORT=3007
+
+volumes:
+  postgres_data:
+  redis_data:
